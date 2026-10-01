@@ -51,31 +51,17 @@ def load_settings(path: Path) -> Settings:
     except Exception as exc:
         raise ComparisonError(f"unknown timezone: {timezone_name}") from exc
 
+    unknown = set(providers) - {"reality", "xstocks", "robinhood"}
+    if unknown:
+        raise ComparisonError(f"unsupported providers: {sorted(unknown)}")
+
     for provider in providers:
         if provider not in provider_config:
             raise ComparisonError(f"provider {provider!r} has no config section")
-        enabled = bool(provider_config[provider].get("enabled", False))
-        if provider == "ondo" and enabled:
-            raise ComparisonError(
-                "Ondo is not implemented yet; keep providers.ondo.enabled = false"
-            )
-        if provider != "ondo" and not enabled:
-            raise ComparisonError(
-                f"provider {provider!r} is listed in run.providers but disabled"
-            )
-
-    active = tuple(
-        provider
-        for provider in providers
-        if bool(provider_config[provider].get("enabled", False))
-    )
-    unknown = set(active) - {"reality", "xstocks", "robinhood"}
-    if unknown:
-        raise ComparisonError(f"unsupported enabled providers: {sorted(unknown)}")
 
     return Settings(
         symbols=symbols,
-        providers=active,
+        providers=providers,
         from_date=from_date,
         to_date=to_date,
         timezone=configured_timezone,

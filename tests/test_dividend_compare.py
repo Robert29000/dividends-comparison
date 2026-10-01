@@ -44,7 +44,6 @@ ROBINHOOD_EVENT_ABI = abi_entry(load_abi("robinhood.json"), "UIMultiplierUpdated
 def settings_for(root: Path, providers=("reality",)) -> Settings:
     provider_config = {
         "reality": {
-            "enabled": True,
             "chain_id": 42161,
             "network": "ARB",
             "rpc_url_env": "ARBITRUM_RPC_URL",
@@ -52,14 +51,12 @@ def settings_for(root: Path, providers=("reality",)) -> Settings:
             "log_address": REALITY_ORACLE,
         },
         "xstocks": {
-            "enabled": True,
             "chain_id": 1,
             "network": "Ethereum",
             "rpc_url_env": "ETHEREUM_RPC_URL",
             "asset_url": "https://example.invalid/{symbol}x",
         },
         "robinhood": {
-            "enabled": True,
             "chain_id": 4663,
             "network": "Robinhood Chain",
             "rpc_url_env": "ROBINHOOD_RPC_URL",
@@ -130,7 +127,7 @@ def csv_log(
 
 
 class ConfigurationTests(unittest.TestCase):
-    def test_project_config_is_valid_and_ondo_is_disabled(self):
+    def test_project_config_has_the_supported_providers(self):
         settings = load_settings(Path("config.toml"))
         self.assertEqual(settings.symbols[0], "GOOGL")
         self.assertEqual(settings.providers, ("reality", "xstocks", "robinhood"))
