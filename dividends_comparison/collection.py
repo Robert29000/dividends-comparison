@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 from datetime import datetime, time
+from time import sleep
 from typing import Any, Mapping
 
 import requests
@@ -29,6 +30,7 @@ def http_get(
     timeout: int = 60,
     allow_not_found: bool = False,
 ) -> requests.Response:
+    request_url = requests.Request("GET", url, params=params).prepare().url or url
     try:
         response = requests.get(url, params=params, timeout=timeout)
         if allow_not_found and response.status_code == 404:
@@ -36,12 +38,16 @@ def http_get(
         response.raise_for_status()
         return response
     except requests.RequestException as exc:
-        raise ComparisonError(f"GET {url} failed: {exc}") from exc
+        if exc.request is not None and exc.request.url:
+            request_url = exc.request.url
+        raise ComparisonError(f"GET {request_url} failed: {exc}") from exc
 
 
 def collect_alpha(settings: Settings) -> None:
     api_key = require_env("ALPHAVANTAGE_API_KEY")
-    for symbol in settings.symbols:
+    for index, symbol in enumerate(settings.symbols):
+        if index:
+            sleep(1.1)
         response = http_get(
             settings.alpha_vantage_url,
             params={
@@ -57,6 +63,8 @@ def collect_alpha(settings: Settings) -> None:
                 message = json.loads(text)
             except json.JSONDecodeError:
                 message = text[:300]
+            if message == {}:
+                message = "empty response, likely caused by API request throttling"
             raise ComparisonError(
                 f"Alpha Vantage did not return dividend CSV for {symbol}: {message}"
             )

@@ -28,19 +28,29 @@ set +a
 
 ## Run
 
-Collect fresh API/log/RPC data and create the report:
+Collect fresh third-party API data, blockchain logs/RPC data, and create the
+report:
 
 ```sh
-compare-dividends --config config.toml --collect
+compare-dividends --config config.toml --collect-api-data --collect-logs
 ```
 
-Rebuild the report without making any network calls:
+The collection stages can also run independently. Both commands still process
+the available caches and rebuild the report:
 
 ```sh
-compare-dividends --config config.toml --use-existing
+compare-dividends --config config.toml --collect-api-data
+compare-dividends --config config.toml --collect-logs
 ```
 
-`--collect` replaces cache files for the configured date range. Raw Alpha
+With no collection flag, the report is rebuilt without network calls:
+
+```sh
+compare-dividends --config config.toml
+```
+
+Collection replaces the corresponding cache files for the configured date
+range. Raw Alpha
 Vantage CSV files are stored in `data/nasdaq/`, raw Blockscout files in
 `data/logs/`, provider metadata in `data/assets/`, and historical RPC results
 in `data/rpc/`. The final wide table is

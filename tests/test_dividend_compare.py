@@ -30,7 +30,7 @@ from dividends_comparison.events import (
     scale_uint,
     timestamp_fields,
 )
-from dividends_comparison.models import Dividend, Settings
+from dividends_comparison.models import ComparisonError, Dividend, Settings
 from dividends_comparison.reporting import build_report_rows, matching_candidates
 
 REALITY_EVENT_ABI = abi_entry(load_abi("reality.json"), "ActionExecuted")
@@ -134,15 +134,33 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(settings.from_date, date(2026, 7, 1))
         self.assertEqual(settings.to_date, date(2026, 9, 30))
 
-    def test_cli_modes_are_mutually_exclusive_and_required(self):
+    def test_cli_collection_stages_are_independent(self):
         parser = app.build_parser()
-        with self.assertRaises(SystemExit):
-            parser.parse_args([])
-        with self.assertRaises(SystemExit):
-            parser.parse_args(["--collect", "--use-existing"])
+        cached = parser.parse_args([])
+        self.assertFalse(cached.collect_api_data)
+        self.assertFalse(cached.collect_logs)
+        both = parser.parse_args(["--collect-api-data", "--collect-logs"])
+        self.assertTrue(both.collect_api_data)
+        self.assertTrue(both.collect_logs)
 
 
 class DataTests(unittest.TestCase):
+    def test_http_error_includes_encoded_query_parameters(self):
+        with patch.object(
+            collection.requests,
+            "get",
+            side_effect=collection.requests.ConnectionError("offline"),
+        ):
+            with self.assertRaises(ComparisonError) as raised:
+                collection.http_get(
+                    "https://example.invalid/query",
+                    params={"function": "DIVIDENDS", "symbol": "AAPL"},
+                )
+        self.assertIn(
+            "https://example.invalid/query?function=DIVIDENDS&symbol=AAPL",
+            str(raised.exception),
+        )
+
     def test_dividend_filter_is_inclusive_and_requires_payment_date(self):
         with tempfile.TemporaryDirectory() as temporary:
             settings = settings_for(Path(temporary))
@@ -481,7 +499,7 @@ class OfflineModeTests(unittest.TestCase):
                 "get",
                 side_effect=AssertionError("network attempted"),
             ):
-                self.assertEqual(app.run(settings, collect=False), 0)
+                self.assertEqual(app.run(settings), 0)
             with settings.output_path.open(newline="") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["reality_match_status"], "no_match")
