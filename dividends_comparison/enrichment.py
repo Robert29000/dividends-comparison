@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from web3 import Web3
@@ -19,10 +18,10 @@ def enrichment_key(
     symbol: str,
     event: Mapping[str, Any],
 ) -> str:
-    # v2 prevents reuse of the old ex-date-midnight supply snapshots.
+    # v3 requires raw and ISO block timestamps from the current log cache schema.
     return "|".join(
         (
-            "v2",
+            "v3",
             provider,
             symbol,
             str(event["block_number"]),
@@ -61,9 +60,10 @@ class RpcEnricher:
         self.settings = settings
         self.collect = collect
         self.path = rpc_cache_path(settings)
-        self.records: dict[str, dict[str, Any]] = (
-            {} if collect else read_json(self.path)
-        )
+        loaded = {} if collect else read_json(self.path)
+        if not isinstance(loaded, dict):
+            raise ComparisonError(f"invalid RPC cache structure: {self.path}")
+        self.records: dict[str, dict[str, Any]] = loaded
         self.clients: dict[str, Web3] = {}
         self.snapshot_blocks: dict[tuple[str, int], int] = {}
 
@@ -98,16 +98,27 @@ class RpcEnricher:
     ) -> dict[str, Any]:
         key = enrichment_key(provider, symbol, event)
         if key in self.records:
-            return self.records[key]
+            record = self.records[key]
+            required = {
+                "block_timestamp",
+                "block_at_iso",
+                "total_supply",
+                "total_supply_snapshot_block",
+            }
+            if not isinstance(record, dict) or not required.issubset(record):
+                raise ComparisonError(
+                    f"outdated RPC cache entry {key}; recollect logs"
+                )
+            return record
         if not self.collect:
             raise ComparisonError(f"required RPC cache entry is missing: {key}")
 
         client = self._client(provider)
         try:
-            block = client.eth.get_block(int(event["block_number"]))
-            block_date = datetime.fromtimestamp(
-                int(block["timestamp"]), tz=timezone.utc
-            ).isoformat().replace("+00:00", "Z")
+            block_timestamp = int(event["block_timestamp"])
+            block_at_iso = str(event["block_at_iso"])
+            if not block_at_iso:
+                raise ComparisonError("event block ISO timestamp is missing")
 
             cutoff_timestamp = int(event["effective_timestamp"])
             snapshot_cache_key = (provider, cutoff_timestamp)
@@ -131,7 +142,8 @@ class RpcEnricher:
                 )
             )
             record: dict[str, Any] = {
-                "block_date": block_date,
+                "block_timestamp": block_timestamp,
+                "block_at_iso": block_at_iso,
                 "total_supply": scale_uint(supply, decimals),
                 "total_supply_snapshot_block": snapshot_block,
             }

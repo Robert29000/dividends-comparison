@@ -7,7 +7,6 @@ import tomllib
 from datetime import date
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from .models import ComparisonError, Settings
 
@@ -36,7 +35,6 @@ def load_settings(path: Path) -> Settings:
         providers = tuple(str(item).lower() for item in run["providers"])
         from_date = parse_iso_date(run["from_date"], "run.from_date")
         to_date = parse_iso_date(run["to_date"], "run.to_date")
-        timezone_name = str(run["timezone"])
     except (KeyError, TypeError) as exc:
         raise ComparisonError(f"invalid config structure: {exc}") from exc
 
@@ -46,11 +44,6 @@ def load_settings(path: Path) -> Settings:
         raise ComparisonError("run.providers must contain unique providers")
     if from_date > to_date:
         raise ComparisonError("run.from_date must not be after run.to_date")
-    try:
-        configured_timezone = ZoneInfo(timezone_name)
-    except Exception as exc:
-        raise ComparisonError(f"unknown timezone: {timezone_name}") from exc
-
     unknown = set(providers) - {"reality", "xstocks", "robinhood"}
     if unknown:
         raise ComparisonError(f"unsupported providers: {sorted(unknown)}")
@@ -64,9 +57,8 @@ def load_settings(path: Path) -> Settings:
         providers=providers,
         from_date=from_date,
         to_date=to_date,
-        timezone=configured_timezone,
         data_dir=Path(str(paths["data"])),
-        output_path=Path(str(paths["output"])),
+        output_dir=Path(str(paths["output"])),
         alpha_vantage_url=str(services["alpha_vantage_url"]),
         blockscout_url=str(services["blockscout_url"]),
         provider_config={key: dict(value) for key, value in provider_config.items()},

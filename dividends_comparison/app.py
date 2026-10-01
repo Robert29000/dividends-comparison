@@ -18,7 +18,14 @@ from .config import load_settings
 from .enrichment import RpcEnricher
 from .events import decode_all_events
 from .models import ComparisonError, Settings
-from .reporting import build_report_rows, write_report
+from .reporting import (
+    NASDAQ_FIELDS,
+    PROVIDER_FIELDS,
+    build_nasdaq_rows,
+    build_provider_rows,
+    output_path,
+    write_report,
+)
 
 
 def run(
@@ -36,10 +43,30 @@ def run(
     dividends = load_dividends(settings)
     events = decode_all_events(settings, assets)
     enricher = RpcEnricher(settings, collect=collect_logs_data)
-    rows = build_report_rows(settings, dividends, assets, events, enricher)
+    counts = {
+        "nasdaq": write_report(
+            settings,
+            "nasdaq",
+            NASDAQ_FIELDS,
+            build_nasdaq_rows(settings, dividends),
+        )
+    }
+    for provider in settings.providers:
+        rows = build_provider_rows(
+            settings,
+            provider,
+            events[provider],
+            enricher,
+        )
+        counts[provider] = write_report(
+            settings,
+            provider,
+            PROVIDER_FIELDS,
+            rows,
+        )
     enricher.save()
-    count = write_report(settings, rows)
-    print(f"wrote {count} rows to {settings.output_path}")
+    for source, count in counts.items():
+        print(f"wrote {count} rows to {output_path(settings, source)}")
     return 0
 
 

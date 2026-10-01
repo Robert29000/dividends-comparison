@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 
 class ComparisonError(RuntimeError):
@@ -19,9 +18,8 @@ class Settings:
     providers: tuple[str, ...]
     from_date: date
     to_date: date
-    timezone: ZoneInfo
     data_dir: Path
-    output_path: Path
+    output_dir: Path
     alpha_vantage_url: str
     blockscout_url: str
     provider_config: dict[str, dict[str, Any]]

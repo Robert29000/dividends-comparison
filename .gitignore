@@ -5,3 +5,4 @@ __pycache__/
 .env
 data/
 output/
+.DS_Store

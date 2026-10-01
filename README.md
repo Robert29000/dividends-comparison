@@ -1,8 +1,9 @@
-# Dividend comparison
+# Dividend data collection
 
-A small Python CLI that connects ordinary-stock dividend events from Alpha
-Vantage to corporate-action events emitted by Reality Finance, xStocks, and
-Robinhood Stock Tokens.
+A small Python CLI that collects ordinary-stock dividends from Alpha Vantage
+and corporate-action events from Reality Finance, xStocks, and Robinhood Stock
+Tokens. Each source is written independently; the tool does not match Nasdaq
+dividends to blockchain events.
 
 ## Setup
 
@@ -49,24 +50,38 @@ With no collection flag, the report is rebuilt without network calls:
 compare-dividends --config config.toml
 ```
 
-Collection replaces the corresponding cache files for the configured date
-range. Raw Alpha
-Vantage CSV files are stored in `data/nasdaq/`, raw Blockscout files in
-`data/logs/`, provider metadata in `data/assets/`, and historical RPC results
-in `data/rpc/`. The final wide table is
-`output/dividend_comparison.csv`.
+Offline mode requires caches produced by the current schema. Log caches without
+the raw `Timestamp` column and pre-`v3` RPC entries are rejected with an
+instruction to rerun `--collect-logs`; incomplete legacy timestamps are never
+written to output.
 
-For every matched provider event, the report finds the latest block whose
+Collection replaces the corresponding cache files. Raw Alpha Vantage CSV files
+are stored in `data/nasdaq/`, topic-filtered Blockscout log files in
+`data/logs/`, provider metadata in `data/assets/`, and historical RPC results
+in `data/rpc/`. The output directory contains four independent tables:
+
+- `output/nasdaq.csv`
+- `output/reality.csv`
+- `output/xstocks.csv`
+- `output/robinhood.csv`
+
+Blockscout logs are fetched through its `module=logs&action=getLogs` API with
+the contract address and `topic0` filters. Reality Finance collects only the
+`ActionExecuted` event. The indexed rToken topic is decoded and checked against
+both the event argument and the asset API address.
+
+The configured date range applies to the UTC timestamp of the emitted log. For
+every collected provider event, the tool finds the latest block whose
 timestamp is strictly earlier than the event's on-chain effective/activation
-timestamp. It stores that block in `*_total_supply_snapshot_block` and reads
-`totalSupply()` at that historical block into `*_total_supply`. If activation
+timestamp. It stores that block in `total_supply_snapshot_block` and reads
+`totalSupply()` at that historical block into `total_supply`. If activation
 is still in the future, the current chain head and current supply are used.
 Archive-capable RPC endpoints are therefore required for past events.
 
-Dates are inclusive. Provider events match when their effective/activation
-date, interpreted in the configured timezone, equals the ex-dividend date. If
-a provider has several matching events, the output contains every
-cross-provider candidate combination.
+Dates are inclusive and on-chain timestamps are interpreted in UTC. Provider
+tables include the raw Unix `effective_timestamp`, its readable
+`effective_at_iso` value, and the effective UTC date. They also contain the
+event block's raw timestamp and ISO value.
 
 The implementation is divided into logical modules under
 `dividends_comparison/`: configuration, collection, event decoding, RPC

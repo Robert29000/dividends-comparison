@@ -6,7 +6,6 @@ import unittest
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
-from zoneinfo import ZoneInfo
 
 from web3 import Web3
 
@@ -19,11 +18,17 @@ from dividends_comparison.cache import (
     rpc_cache_path,
     write_json,
 )
-from dividends_comparison.collection import collect_logs, load_dividends, resolve_assets
+from dividends_comparison.collection import (
+    collect_logs,
+    event_topics,
+    load_dividends,
+    resolve_assets,
+)
 from dividends_comparison.config import load_settings
 from dividends_comparison.contracts import REALITY_ORACLE, abi_entry, load_abi
 from dividends_comparison.enrichment import RpcEnricher, latest_block_before
 from dividends_comparison.events import (
+    blockscout_rows,
     decode_reality,
     decode_robinhood,
     decode_xstocks,
@@ -31,7 +36,11 @@ from dividends_comparison.events import (
     timestamp_fields,
 )
 from dividends_comparison.models import ComparisonError, Dividend, Settings
-from dividends_comparison.reporting import build_report_rows, matching_candidates
+from dividends_comparison.reporting import (
+    build_nasdaq_rows,
+    build_provider_rows,
+    output_path,
+)
 
 REALITY_EVENT_ABI = abi_entry(load_abi("reality.json"), "ActionExecuted")
 XSTOCKS_SCHEDULED_ABI = abi_entry(load_abi("xstocks.json"), "MultiplierScheduled")
@@ -68,11 +77,10 @@ def settings_for(root: Path, providers=("reality",)) -> Settings:
         providers=tuple(providers),
         from_date=date(2026, 7, 1),
         to_date=date(2026, 9, 30),
-        timezone=ZoneInfo("America/New_York"),
         data_dir=root / "data",
-        output_path=root / "output" / "report.csv",
+        output_dir=root / "output",
         alpha_vantage_url="https://example.invalid/alpha",
-        blockscout_url="https://example.invalid/{chain_id}/{address}",
+        blockscout_url="https://example.invalid/v2/api",
         provider_config=provider_config,
     )
 
@@ -94,12 +102,14 @@ def csv_log(
     tx_hash: str,
     data: str,
     topics: list[str],
+    timestamp: int = 1782860000,
 ) -> str:
     fields = [
         "TxHash",
         "Index",
         "BlockNumber",
         "BlockHash",
+        "Timestamp",
         "ContractAddress",
         "Data",
         "FirstTopic",
@@ -112,10 +122,14 @@ def csv_log(
         "Index": index,
         "BlockNumber": block,
         "BlockHash": "0x" + "ab" * 32,
+        "Timestamp": timestamp,
         "ContractAddress": contract,
         "Data": data,
     }
-    for name, topic in zip(fields[6:], topics):
+    for name, topic in zip(
+        ("FirstTopic", "SecondTopic", "ThirdTopic", "FourthTopic"),
+        topics,
+    ):
         row[name] = topic
     import io
 
@@ -202,14 +216,31 @@ class DataTests(unittest.TestCase):
         self.assertEqual(scale_uint(1_250_000, 6), "1.25")
 
     def test_blockscout_api_key_is_a_query_parameter(self):
+        topic = event_topics("reality")[0]
+
         class Response:
             status_code = 200
-            text = (
-                "TxHash,Index,BlockNumber,ContractAddress,Data,FirstTopic\n"
-            )
 
             def raise_for_status(self):
                 pass
+
+            def json(self):
+                return {
+                    "status": "1",
+                    "message": "OK",
+                    "result": [
+                        {
+                            "address": REALITY_ORACLE,
+                            "topics": [topic],
+                            "data": "0x",
+                            "blockNumber": "0x64",
+                            "blockHash": "0x" + "ab" * 32,
+                            "timeStamp": "0x6a6e7100",
+                            "logIndex": "0x3",
+                            "transactionHash": "0x" + "56" * 32,
+                        }
+                    ],
+                }
 
         with tempfile.TemporaryDirectory() as temporary:
             settings = settings_for(Path(temporary))
@@ -234,12 +265,40 @@ class DataTests(unittest.TestCase):
                     {"reality": {"AAPL": "0x" + "11" * 20}},
                 )
             require_env.assert_called_once_with("BLOCKSCOUT_API_KEY")
-            request = calls[0][1]
-            self.assertEqual(request["params"]["apikey"], "blockscout-key")
-            self.assertNotIn("headers", request)
+            self.assertEqual(len(calls), 1)
+            for _url, request in calls:
+                params = request["params"]
+                self.assertEqual(params["apikey"], "blockscout-key")
+                self.assertEqual(params["chain_id"], 42161)
+                self.assertEqual(params["module"], "logs")
+                self.assertEqual(params["action"], "getLogs")
+                self.assertEqual(params["topic0"], topic)
+                self.assertEqual(params["fromBlock"], 0)
+                self.assertEqual(params["toBlock"], "latest")
+                self.assertNotIn("headers", request)
+            with log_cache_path(settings, "reality", "oracle").open(
+                newline=""
+            ) as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(rows[0]["BlockNumber"], "100")
+            self.assertEqual(rows[0]["Index"], "3")
+            self.assertEqual(rows[0]["Timestamp"], "1785622784")
 
 
 class DecodeTests(unittest.TestCase):
+    def test_outdated_log_cache_requires_recollection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "legacy.csv"
+            path.write_text(
+                "TxHash,Index,BlockNumber,BlockHash,ContractAddress,Data,"
+                "FirstTopic,SecondTopic,ThirdTopic,FourthTopic\n"
+            )
+            with self.assertRaisesRegex(
+                ComparisonError,
+                "outdated Blockscout cache.*recollect logs",
+            ):
+                blockscout_rows(path)
+
     def test_reality_executed_dividend_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
             settings = settings_for(Path(temporary))
@@ -280,6 +339,8 @@ class DecodeTests(unittest.TestCase):
             decoded = decode_reality(settings, {"AAPL": token})["AAPL"]
             self.assertEqual(len(decoded), 1)
             self.assertEqual(decoded[0]["effective_timestamp"], 1782864000)
+            self.assertEqual(decoded[0]["effective_at_iso"], "2026-07-01T00:00:00Z")
+            self.assertEqual(decoded[0]["contract_address"], token)
             self.assertEqual(decoded[0]["payment_per_share"], "0.25")
             self.assertEqual(decoded[0]["payout_token"], payout)
             self.assertEqual(decoded[0]["event_name"], "ActionExecuted")
@@ -342,41 +403,26 @@ class DecodeTests(unittest.TestCase):
             self.assertEqual(decoded["proposed_multiplier"], "1.005")
 
 
-class MatchingTests(unittest.TestCase):
-    def candidate(self, day: str, block: int = 1):
-        return {"event_date": day, "block_number": block, "log_index": 0}
+class ReportingTests(unittest.TestCase):
+    def test_timestamp_uses_utc_calendar_date(self):
+        instant, day = timestamp_fields(1782871200)
+        self.assertEqual(instant, "2026-07-01T02:00:00Z")
+        self.assertEqual(day, "2026-07-01")
 
-    def test_matching_requires_the_exact_event_date(self):
-        candidates = [
-            self.candidate("2026-07-08", 1),
-            self.candidate("2026-07-09", 2),
-            self.candidate("2026-07-10", 3),
-            self.candidate("2026-07-11", 4),
-            self.candidate("2026-07-12", 5),
-        ]
-        matched = matching_candidates(candidates, date(2026, 7, 10))
-        self.assertEqual([item["block_number"] for item in matched], [3])
-        self.assertEqual([item["candidate_index"] for item in matched], [1])
-
-    def test_timestamp_uses_new_york_calendar_date(self):
-        _instant, day = timestamp_fields(
-            1782871200, ZoneInfo("America/New_York")
-        )
-        self.assertEqual(day, "2026-06-30")
-
-    def test_multiple_provider_candidates_expand_cartesian_rows(self):
+    def test_nasdaq_and_provider_rows_are_independent(self):
         with tempfile.TemporaryDirectory() as temporary:
-            settings = settings_for(Path(temporary), ("xstocks", "robinhood"))
+            settings = settings_for(Path(temporary), ("xstocks",))
             dividend = Dividend(
                 "AAPL", date(2026, 7, 1), "", "", "2026-07-10", "0.25"
             )
-            base = {
+            event = {
                 "symbol": "AAPL",
                 "contract_address": "0x" + "11" * 20,
                 "event_name": "event",
-                "execution_at": "",
-                "activation_time": "2026-07-01T00:00:00Z",
-                "event_date": "2026-07-01",
+                "effective_timestamp": 1782864000,
+                "effective_at_iso": "2026-07-01T00:00:00Z",
+                "effective_date": "2026-07-01",
+                "block_number": 1,
                 "transaction_hash": "0x" + "22" * 32,
                 "payment_per_share": "",
                 "payout_token": "",
@@ -384,27 +430,61 @@ class MatchingTests(unittest.TestCase):
                 "proposed_multiplier": "1.1",
                 "log_index": 0,
             }
-            events = {}
-            for provider in settings.providers:
-                events[provider] = {"AAPL": [dict(base, provider=provider, block_number=1), dict(base, provider=provider, block_number=2)]}
 
             class Enricher:
                 def get(self, provider, symbol, event):
-                    return {"block_date": "2026-07-01T00:00:00Z", "total_supply": "10", "total_supply_snapshot_block": 9}
+                    return {
+                        "block_timestamp": 1782860000,
+                        "block_at_iso": "2026-06-30T22:53:20Z",
+                        "total_supply": "10",
+                        "total_supply_snapshot_block": 9,
+                    }
 
-            rows = build_report_rows(
+            nasdaq_rows = build_nasdaq_rows(
                 settings,
                 {"AAPL": [dividend]},
-                {provider: {"AAPL": "0x" + "11" * 20} for provider in settings.providers},
-                events,
+            )
+            provider_rows = build_provider_rows(
+                settings,
+                "xstocks",
+                {"AAPL": [event]},
                 Enricher(),
             )
-            self.assertEqual(len(rows), 4)
-            self.assertTrue(all(row["xstocks_candidate_count"] == 2 for row in rows))
-            self.assertTrue(all(row["robinhood_candidate_count"] == 2 for row in rows))
+            self.assertEqual(nasdaq_rows[0]["ex_dividend_date"], "2026-07-01")
+            self.assertNotIn("event_name", nasdaq_rows[0])
+            self.assertEqual(provider_rows[0]["event_name"], "event")
+            self.assertNotIn("ex_dividend_date", provider_rows[0])
 
 
 class RpcTests(unittest.TestCase):
+    def test_outdated_rpc_cache_is_not_reused(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = settings_for(Path(temporary))
+            write_json(
+                rpc_cache_path(settings),
+                {
+                    "v2|reality|AAPL|4|0|40": {
+                        "block_date": "1970-01-01T00:00:50Z",
+                        "total_supply": "1.25",
+                        "total_supply_snapshot_block": 2,
+                    }
+                },
+            )
+            enricher = RpcEnricher(settings, collect=False)
+            with self.assertRaisesRegex(
+                ComparisonError,
+                r"required RPC cache entry is missing: v3\|",
+            ):
+                enricher.get(
+                    "reality",
+                    "AAPL",
+                    {
+                        "block_number": 4,
+                        "log_index": 0,
+                        "effective_timestamp": 40,
+                    },
+                )
+
     def test_latest_block_is_strictly_before_cutoff(self):
         class Eth:
             block_number = 4
@@ -465,6 +545,8 @@ class RpcTests(unittest.TestCase):
                 "AAPL",
                 {
                     "block_number": 4,
+                    "block_timestamp": 50,
+                    "block_at_iso": "1970-01-01T00:00:50Z",
                     "log_index": 0,
                     "effective_timestamp": 40,
                     "contract_address": "0x" + "11" * 20,
@@ -491,7 +573,8 @@ class OfflineModeTests(unittest.TestCase):
             )
             atomic_write(
                 log_cache_path(settings, "reality", "oracle"),
-                "TxHash,Index,BlockNumber,BlockHash,ContractAddress,Data,FirstTopic,SecondTopic,ThirdTopic,FourthTopic\n",
+                "TxHash,Index,BlockNumber,BlockHash,Timestamp,ContractAddress,"
+                "Data,FirstTopic,SecondTopic,ThirdTopic,FourthTopic\n",
             )
             write_json(rpc_cache_path(settings), {})
             with patch.object(
@@ -500,9 +583,12 @@ class OfflineModeTests(unittest.TestCase):
                 side_effect=AssertionError("network attempted"),
             ):
                 self.assertEqual(app.run(settings), 0)
-            with settings.output_path.open(newline="") as handle:
-                rows = list(csv.DictReader(handle))
-            self.assertEqual(rows[0]["reality_match_status"], "no_match")
+            with output_path(settings, "nasdaq").open(newline="") as handle:
+                nasdaq_rows = list(csv.DictReader(handle))
+            with output_path(settings, "reality").open(newline="") as handle:
+                reality_rows = list(csv.DictReader(handle))
+            self.assertEqual(nasdaq_rows[0]["symbol"], "AAPL")
+            self.assertEqual(reality_rows, [])
 
 
 if __name__ == "__main__":

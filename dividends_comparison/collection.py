@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
-from datetime import datetime, time
+from datetime import datetime, timezone
 from time import sleep
 from typing import Any, Mapping
 
 import requests
+from web3 import Web3
 
 from .cache import (
     alpha_cache_path,
@@ -19,7 +21,7 @@ from .cache import (
     write_json,
 )
 from .config import parse_iso_date, require_env
-from .contracts import REALITY_ORACLE
+from .contracts import REALITY_ORACLE, abi_entry, load_abi
 from .models import ComparisonError, Dividend, Settings
 
 
@@ -29,18 +31,28 @@ def http_get(
     params: Mapping[str, Any] | None = None,
     timeout: int = 60,
     allow_not_found: bool = False,
+    retries: int = 0,
 ) -> requests.Response:
     request_url = requests.Request("GET", url, params=params).prepare().url or url
-    try:
-        response = requests.get(url, params=params, timeout=timeout)
-        if allow_not_found and response.status_code == 404:
+    for attempt in range(retries + 1):
+        try:
+            response = requests.get(url, params=params, timeout=timeout)
+            if response.status_code == 429 and attempt < retries:
+                try:
+                    delay = float(response.headers.get("Retry-After", ""))
+                except (TypeError, ValueError):
+                    delay = min(2**attempt, 10)
+                sleep(max(delay, 1))
+                continue
+            if allow_not_found and response.status_code == 404:
+                return response
+            response.raise_for_status()
             return response
-        response.raise_for_status()
-        return response
-    except requests.RequestException as exc:
-        if exc.request is not None and exc.request.url:
-            request_url = exc.request.url
-        raise ComparisonError(f"GET {request_url} failed: {exc}") from exc
+        except requests.RequestException as exc:
+            if exc.request is not None and exc.request.url:
+                request_url = exc.request.url
+            raise ComparisonError(f"GET {request_url} failed: {exc}") from exc
+    raise AssertionError("unreachable")
 
 
 def collect_alpha(settings: Settings) -> None:
@@ -176,10 +188,80 @@ def resolve_assets(settings: Settings) -> dict[str, dict[str, str | None]]:
     return resolved
 
 
-def range_parameters(settings: Settings) -> tuple[str, str]:
-    start = datetime.combine(settings.from_date, time.min, tzinfo=settings.timezone)
-    end = datetime.combine(settings.to_date, time.max, tzinfo=settings.timezone)
-    return start.isoformat(), end.isoformat()
+def event_topics(provider: str) -> tuple[str, ...]:
+    definitions = {
+        "reality": ("reality.json", ("ActionExecuted",)),
+        "xstocks": (
+            "xstocks.json",
+            ("MultiplierScheduled", "MultiplierScheduleOverridden"),
+        ),
+        "robinhood": ("robinhood.json", ("UIMultiplierUpdated",)),
+    }
+    filename, event_names = definitions[provider]
+    abi = load_abi(filename)
+    topics = []
+    for event_name in event_names:
+        event = abi_entry(abi, event_name)
+        signature = f"{event_name}({','.join(item['type'] for item in event['inputs'])})"
+        topics.append(Web3.keccak(text=signature).to_0x_hex().lower())
+    return tuple(topics)
+
+
+def blockscout_log_rows(
+    url: str,
+    chain_id: int,
+    address: str,
+    api_key: str,
+    topic: str,
+    settings: Settings,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {
+        "chain_id": chain_id,
+        "module": "logs",
+        "action": "getLogs",
+        "address": address,
+        "topic0": topic,
+        "fromBlock": 0,
+        "toBlock": "latest",
+        "apikey": api_key,
+    }
+    response = http_get(url, params=params, timeout=120, retries=5)
+    try:
+        payload = response.json()
+    except requests.JSONDecodeError as exc:
+        raise ComparisonError(f"Blockscout returned invalid log JSON: {url}") from exc
+    items = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        message = payload.get("message", payload) if isinstance(payload, dict) else payload
+        raise ComparisonError(f"Blockscout log response is invalid: {message}")
+
+    rows = []
+    for item in items:
+        try:
+            topics = list(item["topics"])
+            block_timestamp = int(str(item["timeStamp"]), 0)
+            block_date = datetime.fromtimestamp(
+                block_timestamp, tz=timezone.utc
+            ).date()
+            if not settings.from_date <= block_date <= settings.to_date:
+                continue
+            row = {
+                "TxHash": item["transactionHash"],
+                "Index": int(str(item["logIndex"]), 0),
+                "BlockNumber": int(str(item["blockNumber"]), 0),
+                "BlockHash": item.get("blockHash", ""),
+                "Timestamp": block_timestamp,
+                "ContractAddress": item["address"],
+                "Data": item["data"],
+                "FirstTopic": topics[0] if topics else "",
+                "SecondTopic": topics[1] if len(topics) > 1 else "",
+                "ThirdTopic": topics[2] if len(topics) > 2 else "",
+                "FourthTopic": topics[3] if len(topics) > 3 else "",
+            }
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ComparisonError(f"invalid Blockscout log item: {exc}") from exc
+        rows.append(row)
+    return rows
 
 
 def collect_logs(
@@ -187,7 +269,19 @@ def collect_logs(
     assets: Mapping[str, Mapping[str, str | None]],
 ) -> None:
     api_key = require_env("BLOCKSCOUT_API_KEY")
-    from_period, to_period = range_parameters(settings)
+    fieldnames = (
+        "TxHash",
+        "Index",
+        "BlockNumber",
+        "BlockHash",
+        "Timestamp",
+        "ContractAddress",
+        "Data",
+        "FirstTopic",
+        "SecondTopic",
+        "ThirdTopic",
+        "FourthTopic",
+    )
 
     for provider in settings.providers:
         config = settings.provider_config[provider]
@@ -202,31 +296,33 @@ def collect_logs(
                 if address is not None
             )
         for name, address in targets:
-            url = settings.blockscout_url.format(chain_id=chain_id, address=address)
-            response = http_get(
-                url,
-                params={
-                    "from_period": from_period,
-                    "to_period": to_period,
-                    "apikey": api_key,
-                },
-                timeout=120,
-            )
-            header = next(csv.reader(response.text.splitlines()), [])
-            required = {
-                "TxHash",
-                "Index",
-                "BlockNumber",
-                "ContractAddress",
-                "Data",
-                "FirstTopic",
-            }
-            if not required.issubset(header):
-                raise ComparisonError(
-                    f"Blockscout CSV for {provider}/{name} is missing "
-                    f"{sorted(required - set(header))}"
+            url = settings.blockscout_url
+            collected = []
+            for topic in event_topics(provider):
+                collected.extend(
+                    blockscout_log_rows(
+                        url,
+                        chain_id,
+                        address,
+                        api_key,
+                        topic,
+                        settings,
+                    )
                 )
-            atomic_write(log_cache_path(settings, provider, name), response.text)
+                sleep(0.5)
+            unique = {
+                (str(row["TxHash"]).lower(), int(row["Index"])): row
+                for row in collected
+            }
+            ordered = sorted(
+                unique.values(),
+                key=lambda row: (int(row["BlockNumber"]), int(row["Index"])),
+            )
+            buffer = io.StringIO(newline="")
+            writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(ordered)
+            atomic_write(log_cache_path(settings, provider, name), buffer.getvalue())
 
 
 def load_dividends(settings: Settings) -> dict[str, list[Dividend]]:

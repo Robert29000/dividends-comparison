@@ -3,15 +3,14 @@ symbols = ["GOOGL", "NVDA", "AAPL", "MSFT", "WDC"]
 providers = ["reality", "xstocks", "robinhood"]
 from_date = "2026-07-01"
 to_date = "2026-09-30"
-timezone = "America/New_York"
 
 [paths]
 data = "data"
-output = "output/dividend_comparison.csv"
+output = "output"
 
 [services]
 alpha_vantage_url = "https://www.alphavantage.co/query"
-blockscout_url = "https://api.blockscout.com/{chain_id}/api/v2/addresses/{address}/logs/csv"
+blockscout_url = "https://api.blockscout.com/v2/api"
 
 [providers.reality]
 chain_id = 42161

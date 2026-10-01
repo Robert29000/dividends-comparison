@@ -6,7 +6,6 @@ import csv
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
-from zoneinfo import ZoneInfo
 
 from hexbytes import HexBytes
 from web3 import Web3
@@ -21,6 +20,20 @@ from .contracts import (
 from .cache import log_cache_path
 from .models import ComparisonError, Settings
 
+LOG_CACHE_FIELDS = {
+    "TxHash",
+    "Index",
+    "BlockNumber",
+    "BlockHash",
+    "Timestamp",
+    "ContractAddress",
+    "Data",
+    "FirstTopic",
+    "SecondTopic",
+    "ThirdTopic",
+    "FourthTopic",
+}
+
 
 def blockscout_rows(path: Path) -> list[dict[str, Any]]:
     try:
@@ -32,6 +45,12 @@ def blockscout_rows(path: Path) -> list[dict[str, Any]]:
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
             raise ComparisonError(f"empty Blockscout cache: {path}")
+        missing = LOG_CACHE_FIELDS - set(reader.fieldnames)
+        if missing:
+            raise ComparisonError(
+                f"outdated Blockscout cache {path} is missing "
+                f"{sorted(missing)}; recollect logs"
+            )
         for row in reader:
             if not row.get("TxHash"):
                 continue
@@ -45,6 +64,7 @@ def blockscout_rows(path: Path) -> list[dict[str, Any]]:
                     {
                         "address": Web3.to_checksum_address(row["ContractAddress"]),
                         "blockNumber": int(row["BlockNumber"]),
+                        "timestamp": int(row["Timestamp"]),
                         "transactionHash": HexBytes(row["TxHash"]),
                         "logIndex": int(row["Index"]),
                         "data": HexBytes(row.get("Data") or "0x"),
@@ -75,14 +95,17 @@ def scale_uint(value: int, decimals: int = 18) -> str:
     return f"{whole}.{fraction:0{decimals}d}".rstrip("0")
 
 
-def timestamp_fields(
-    timestamp: int, configured_timezone: ZoneInfo
-) -> tuple[str, str]:
+def timestamp_fields(timestamp: int) -> tuple[str, str]:
     instant = datetime.fromtimestamp(timestamp, tz=timezone.utc)
     return (
         instant.isoformat().replace("+00:00", "Z"),
-        instant.astimezone(configured_timezone).date().isoformat(),
+        instant.date().isoformat(),
     )
+
+
+def log_timestamp_fields(log: Mapping[str, Any]) -> tuple[int, str]:
+    value = int(log["timestamp"])
+    return value, timestamp_fields(value)[0]
 
 
 def event_decoder(
@@ -115,6 +138,14 @@ def decode_reality(
             decoded = event.process_log(log)
             args = decoded["args"]
             token = str(args["token"]).lower()
+            if len(log["topics"]) < 3:
+                raise ComparisonError("Reality action log has no indexed token topic")
+            topic_token = "0x" + bytes(log["topics"][2])[-20:].hex()
+            if topic_token != token:
+                raise ComparisonError(
+                    "Reality decoded token differs from indexed token topic in "
+                    f"{Web3.to_hex(log['transactionHash'])}"
+                )
             if (
                 int(args["actionType"]) != DIVIDEND_ACTION_TYPE
                 or int(args["status"]) != EXECUTED_STATUS
@@ -132,20 +163,20 @@ def decode_reality(
             if symbol is None:
                 continue
             effective_timestamp = int(args["effectiveAt"])
-            event_time, event_date = timestamp_fields(
-                effective_timestamp, settings.timezone
-            )
+            event_time, event_date = timestamp_fields(effective_timestamp)
+            block_timestamp, block_at_iso = log_timestamp_fields(log)
             result[symbol].append(
                 {
                     "provider": "reality",
                     "symbol": symbol,
-                    "contract_address": token,
+                    "contract_address": topic_token,
                     "event_name": "ActionExecuted",
-                    "execution_at": event_time,
-                    "activation_time": "",
                     "effective_timestamp": effective_timestamp,
-                    "event_date": event_date,
+                    "effective_at_iso": event_time,
+                    "effective_date": event_date,
                     "block_number": int(log["blockNumber"]),
+                    "block_timestamp": block_timestamp,
+                    "block_at_iso": block_at_iso,
                     "log_index": int(log["logIndex"]),
                     "transaction_hash": Web3.to_hex(
                         log["transactionHash"]
@@ -190,20 +221,20 @@ def decode_xstocks(
                 if topic == scheduled_topic:
                     args = scheduled_event.process_log(log)["args"]
                     activation = int(args["activationTime"])
-                    activation_time, event_date = timestamp_fields(
-                        activation, settings.timezone
-                    )
+                    activation_time, event_date = timestamp_fields(activation)
+                    block_timestamp, block_at_iso = log_timestamp_fields(log)
                     schedules.append(
                         {
                             "provider": "xstocks",
                             "symbol": symbol,
                             "contract_address": address,
                             "event_name": "MultiplierScheduled",
-                            "execution_at": "",
-                            "activation_time": activation_time,
                             "effective_timestamp": activation,
-                            "event_date": event_date,
+                            "effective_at_iso": activation_time,
+                            "effective_date": event_date,
                             "block_number": int(log["blockNumber"]),
+                            "block_timestamp": block_timestamp,
+                            "block_at_iso": block_at_iso,
                             "log_index": int(log["logIndex"]),
                             "transaction_hash": Web3.to_hex(
                                 log["transactionHash"]
@@ -236,7 +267,11 @@ def decode_xstocks(
                 raise ComparisonError(
                     f"cannot decode xStocks log for {symbol}: {exc}"
                 ) from exc
-        result[symbol] = [item for item in schedules if not item["_overridden"]]
+        result[symbol] = [
+            {key: value for key, value in item.items() if not key.startswith("_")}
+            for item in schedules
+            if not item["_overridden"]
+        ]
     return result
 
 
@@ -264,20 +299,20 @@ def decode_robinhood(
             try:
                 args = event.process_log(log)["args"]
                 activation = int(args["effectiveAtTimestamp"])
-                activation_time, event_date = timestamp_fields(
-                    activation, settings.timezone
-                )
+                activation_time, event_date = timestamp_fields(activation)
+                block_timestamp, block_at_iso = log_timestamp_fields(log)
                 result[symbol].append(
                     {
                         "provider": "robinhood",
                         "symbol": symbol,
                         "contract_address": address,
                         "event_name": "UIMultiplierUpdated",
-                        "execution_at": "",
-                        "activation_time": activation_time,
                         "effective_timestamp": activation,
-                        "event_date": event_date,
+                        "effective_at_iso": activation_time,
+                        "effective_date": event_date,
                         "block_number": int(log["blockNumber"]),
+                        "block_timestamp": block_timestamp,
+                        "block_at_iso": block_at_iso,
                         "log_index": int(log["logIndex"]),
                         "transaction_hash": Web3.to_hex(
                             log["transactionHash"]
