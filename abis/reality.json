@@ -1,0 +1,18 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "name": "id", "type": "bytes32"},
+      {"indexed": true, "name": "token", "type": "address"},
+      {"indexed": false, "name": "reference", "type": "bytes32"},
+      {"indexed": false, "name": "effectiveAt", "type": "uint256"},
+      {"indexed": false, "name": "documentHash", "type": "bytes32"},
+      {"indexed": false, "name": "ticker", "type": "string"},
+      {"indexed": false, "name": "actionType", "type": "uint8"},
+      {"indexed": false, "name": "status", "type": "uint8"},
+      {"indexed": false, "name": "payload", "type": "bytes"}
+    ],
+    "name": "ActionExecuted",
+    "type": "event"
+  }
+]

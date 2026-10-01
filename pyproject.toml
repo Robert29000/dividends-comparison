@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dividends-comparison"
+version = "0.1.0"
+description = "Compare equity dividends with tokenized-stock corporate actions"
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.32,<3",
+  "web3>=7,<9",
+]
+
+[project.scripts]
+compare-dividends = "dividends_comparison.app:main"
+
+[tool.setuptools.packages.find]
+include = ["dividends_comparison*"]
+
+[tool.setuptools.data-files]
+"share/dividends-comparison/abis" = ["abis/*.json"]

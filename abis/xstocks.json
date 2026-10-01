@@ -1,0 +1,43 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "name": "newMultiplier", "type": "uint256"},
+      {"indexed": false, "name": "activationTime", "type": "uint256"}
+    ],
+    "name": "MultiplierScheduled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "name": "overriddenMultiplier", "type": "uint256"},
+      {"indexed": false, "name": "overriddenActivationTime", "type": "uint256"},
+      {"indexed": false, "name": "newMultiplier", "type": "uint256"},
+      {"indexed": false, "name": "newActivationTime", "type": "uint256"}
+    ],
+    "name": "MultiplierScheduleOverridden",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "totalSupply",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{"name": "", "type": "uint8"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "multiplier",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

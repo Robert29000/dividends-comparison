@@ -1,0 +1,12 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": false, "name": "oldMultiplier", "type": "uint256"},
+      {"indexed": false, "name": "newMultiplier", "type": "uint256"},
+      {"indexed": false, "name": "effectiveAtTimestamp", "type": "uint256"}
+    ],
+    "name": "UIMultiplierUpdated",
+    "type": "event"
+  }
+]

@@ -1,0 +1,39 @@
+[run]
+symbols = ["GOOGL", "NVDA", "AAPL", "MSFT", "WDC"]
+providers = ["reality", "xstocks", "robinhood", "ondo"]
+from_date = "2026-07-01"
+to_date = "2026-09-30"
+timezone = "America/New_York"
+
+[paths]
+data = "data"
+output = "output/dividend_comparison.csv"
+
+[services]
+alpha_vantage_url = "https://www.alphavantage.co/query"
+blockscout_url = "https://api.blockscout.com/{chain_id}/api/v2/addresses/{address}/logs/csv"
+
+[providers.reality]
+enabled = true
+chain_id = 42161
+network = "ARB"
+rpc_url_env = "ARBITRUM_RPC_URL"
+asset_url = "https://api.realityfinance.xyz/api/v1/rwa/assets/tickers"
+log_address = "0xd01f8aa971a3f4d13d52299bdd30225b1d7f40f1"
+
+[providers.xstocks]
+enabled = true
+chain_id = 1
+network = "Ethereum"
+rpc_url_env = "ETHEREUM_RPC_URL"
+asset_url = "https://api.xstocks.fi/api/v2/public/assets/{symbol}x"
+
+[providers.robinhood]
+enabled = true
+chain_id = 4663
+network = "Robinhood Chain"
+rpc_url_env = "ROBINHOOD_RPC_URL"
+asset_url = "https://api.robinhood.com/rhj/assets"
+
+[providers.ondo]
+enabled = false
