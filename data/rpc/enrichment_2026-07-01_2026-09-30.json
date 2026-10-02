@@ -1,0 +1,78 @@
+{
+  "v4|robinhood|AAPL|36345344|97|1786720366": {
+    "block_at_iso": "2026-08-14T15:03:06Z",
+    "block_timestamp": 1786719786,
+    "total_supply": "5866.52",
+    "total_supply_snapshot_at_iso": "2026-08-14T15:12:45Z",
+    "total_supply_snapshot_block": 36351131,
+    "total_supply_snapshot_timestamp": 1786720365
+  },
+  "v4|robinhood|GOOGL|63746832|21|1789485027": {
+    "block_at_iso": "2026-09-15T15:00:42Z",
+    "block_timestamp": 1789484442,
+    "total_supply": "15777.178",
+    "total_supply_snapshot_at_iso": "2026-09-15T15:10:26Z",
+    "total_supply_snapshot_block": 63752472,
+    "total_supply_snapshot_timestamp": 1789485026
+  },
+  "v4|robinhood|MSFT|60346891|66|1789139430": {
+    "block_at_iso": "2026-09-11T15:01:46Z",
+    "block_timestamp": 1789138906,
+    "total_supply": "5876.607",
+    "total_supply_snapshot_at_iso": "2026-09-11T15:10:29Z",
+    "total_supply_snapshot_block": 60351978,
+    "total_supply_snapshot_timestamp": 1789139429
+  },
+  "v4|robinhood|NVDA|58952659|0|1788998430": {
+    "block_at_iso": "2026-09-09T23:50:42Z",
+    "block_timestamp": 1788997842,
+    "total_supply": "85313.395",
+    "total_supply_snapshot_at_iso": "2026-09-10T00:00:29Z",
+    "total_supply_snapshot_block": 58958492,
+    "total_supply_snapshot_timestamp": 1788998429
+  },
+  "v4|robinhood|WDC|57331474|26|1788834869": {
+    "block_at_iso": "2026-09-08T02:24:49Z",
+    "block_timestamp": 1788834289,
+    "total_supply": "78.735",
+    "total_supply_snapshot_at_iso": "2026-09-08T02:34:28Z",
+    "total_supply_snapshot_block": 57337207,
+    "total_supply_snapshot_timestamp": 1788834868
+  },
+  "v4|xstocks|AAPL|25705448|1035|1786149000": {
+    "block_at_iso": "2026-08-07T20:22:35Z",
+    "block_timestamp": 1786134155,
+    "previous_multiplier": "1.0026642075893797",
+    "total_supply": "74100.021769937026649179",
+    "total_supply_snapshot_at_iso": "2026-08-08T00:29:59Z",
+    "total_supply_snapshot_block": 25706679,
+    "total_supply_snapshot_timestamp": 1786148999
+  },
+  "v4|xstocks|GOOGL|25899214|501|1788481800": {
+    "block_at_iso": "2026-09-03T20:36:47Z",
+    "block_timestamp": 1788467807,
+    "previous_multiplier": "1.001926722393864",
+    "total_supply": "69072.991298785707790677",
+    "total_supply_snapshot_at_iso": "2026-09-04T00:29:59Z",
+    "total_supply_snapshot_block": 25900375,
+    "total_supply_snapshot_timestamp": 1788481799
+  },
+  "v4|xstocks|MSFT|25791545|169|1787185800": {
+    "block_at_iso": "2026-08-19T20:28:35Z",
+    "block_timestamp": 1787171315,
+    "previous_multiplier": "1.0045820905025638",
+    "total_supply": "21573.649088613381751663",
+    "total_supply_snapshot_at_iso": "2026-08-20T00:29:59Z",
+    "total_supply_snapshot_block": 25792751,
+    "total_supply_snapshot_timestamp": 1787185799
+  },
+  "v4|xstocks|NVDA|25942210|85|1789000200": {
+    "block_at_iso": "2026-09-09T20:29:59Z",
+    "block_timestamp": 1788985799,
+    "previous_multiplier": "1.0009180758490996",
+    "total_supply": "110094.400550734465768153",
+    "total_supply_snapshot_at_iso": "2026-09-10T00:29:59Z",
+    "total_supply_snapshot_block": 25943410,
+    "total_supply_snapshot_timestamp": 1789000199
+  }
+}
