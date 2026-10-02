@@ -1,0 +1,31 @@
+{
+  "code": "200",
+  "data": [
+    {
+      "desc": "NVIDIA is a leading provider of accelerated computing and AI infrastructure. Its portfolio spans GPUs, CPUs, DPUs, networking, systems, software, developer tools, and cloud services. NVIDIA platforms serve data centers, generative AI, scientific computing, graphics rendering, gaming, professional visualization, autonomous vehicles, robotics, and edge computing. The company\u2019s moat extends beyond chips to CUDA, networking, full-stack systems, developer ecosystems, and deep partnerships with cloud providers, OEMs, and ODMs. Data center AI demand remains the primary growth driver, while gaming, visualization, and automotive broaden its end-market exposure.",
+      "icon": "https://img.bgstatic.com/multiLang/web/6fbfd1a822f7bfdd58f92747b8acb518.png",
+      "isin": "US67066G1040",
+      "status": "active",
+      "ticker": "NVDA",
+      "title": "Nvidia",
+      "tokens": [
+        {
+          "address": "0x0a85b6ebe3c150a1979a65656e304033d62b1e12",
+          "decimals": 18,
+          "network": "ARB",
+          "symbol": "rNVDA"
+        },
+        {
+          "address": "0x170e1bcf1224f71132515caf25fded22ec1c50f1",
+          "decimals": 18,
+          "network": "Morph",
+          "symbol": "rNVDA"
+        }
+      ],
+      "tradeValueUsd24h": 56849464.8902,
+      "tradeVolume24h": 246569.29273804,
+      "type": "equity"
+    }
+  ],
+  "params": []
+}

@@ -1,0 +1,31 @@
+{
+  "code": "200",
+  "data": [
+    {
+      "desc": "Apple is a global consumer technology and digital services company built around tightly integrated hardware, software, silicon, retail, and subscription ecosystems. Its portfolio spans iPhone, Mac, iPad, Apple Watch, AirPods, Apple TV, Beats, accessories, AppleCare, iCloud, App Store, payments, advertising, digital content, and streaming services. The company operates across the Americas, Europe, Greater China, Japan, and the rest of Asia Pacific. Apple\u2019s strategic moat is its installed base, premium brand, vertical integration, privacy positioning, and ability to monetize devices through recurring services and ecosystem upgrades.",
+      "icon": "https://img.bgstatic.com/multiLang/web/ac2876eea8aa20396feb9190f684a613.png",
+      "isin": "US0378331005",
+      "status": "active",
+      "ticker": "AAPL",
+      "title": "Apple",
+      "tokens": [
+        {
+          "address": "0xaba5e0c80e9f58e391214689fb342049c0d31892",
+          "decimals": 18,
+          "network": "ARB",
+          "symbol": "rAAPL"
+        },
+        {
+          "address": "0xa708ddf058d718fc3444cdc7dbb5b66b3364671c",
+          "decimals": 18,
+          "network": "Morph",
+          "symbol": "rAAPL"
+        }
+      ],
+      "tradeValueUsd24h": 377191.4296,
+      "tradeVolume24h": 1133.5953747,
+      "type": "equity"
+    }
+  ],
+  "params": []
+}

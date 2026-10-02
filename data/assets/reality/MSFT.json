@@ -1,0 +1,31 @@
+{
+  "code": "200",
+  "data": [
+    {
+      "desc": "Microsoft is a global software, cloud, enterprise services, and AI platform company. It operates through Productivity and Business Processes, Intelligent Cloud, and More Personal Computing. Core offerings include Microsoft 365, Office, Teams, Dynamics, LinkedIn, Azure, Windows, GitHub, Power Platform, security, developer tools, gaming, and devices. Microsoft is embedding generative AI through Copilot, Azure AI infrastructure, enterprise data services, cybersecurity, and its OpenAI ecosystem relationship. Its strategic position rests on enterprise distribution, cloud scale, developer mindshare, productivity workflows, and the ability to monetize AI across software, cloud, and business processes.",
+      "icon": "https://img.bgstatic.com/multiLang/web/f5811b609036103d36856f87e348ce61.png",
+      "isin": "US5949181045",
+      "status": "active",
+      "ticker": "MSFT",
+      "title": "Microsoft",
+      "tokens": [
+        {
+          "address": "0xda7c9549e87d4f96585701970acdcc90e8d35024",
+          "decimals": 18,
+          "network": "ARB",
+          "symbol": "rMSFT"
+        },
+        {
+          "address": "0x11a4d42b7af39c7ba1f11ded8b64b93bc2ed5297",
+          "decimals": 18,
+          "network": "Morph",
+          "symbol": "rMSFT"
+        }
+      ],
+      "tradeValueUsd24h": 8594.9882,
+      "tradeVolume24h": 16.70344811,
+      "type": "equity"
+    }
+  ],
+  "params": []
+}

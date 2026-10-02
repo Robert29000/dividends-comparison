@@ -1,0 +1,31 @@
+{
+  "code": "200",
+  "data": [
+    {
+      "desc": "Western Digital completed the separation of its Flash/Sandisk business in 2025 and is now more focused on hard disk drives and data-storage platforms, particularly high-capacity nearline HDDs for cloud providers, enterprise data centers and AI data lakes. The story has shifted from HDD/NAND diversification to mass-capacity storage demand.",
+      "icon": "https://img.bgstatic.com/multiLang/web/9b3a02890817e1c8b679db08b3928f61.png",
+      "isin": "US9581021055",
+      "status": "active",
+      "ticker": "WDC",
+      "title": "Western Digital",
+      "tokens": [
+        {
+          "address": "0x2f3842aec3c1e3ee6b505b1d5a7f9b794989b6bd",
+          "decimals": 18,
+          "network": "ARB",
+          "symbol": "rWDC"
+        },
+        {
+          "address": "0x09b8cd9a29503efcaf7c840f32d99242c57b0893",
+          "decimals": 18,
+          "network": "Morph",
+          "symbol": "rWDC"
+        }
+      ],
+      "tradeValueUsd24h": 17251.3597,
+      "tradeVolume24h": 37.86403922,
+      "type": "equity"
+    }
+  ],
+  "params": []
+}

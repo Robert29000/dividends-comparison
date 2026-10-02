@@ -3,6 +3,5 @@
 __pycache__/
 *.py[cod]
 .env
-data/
-output/
 .DS_Store
+rpc/

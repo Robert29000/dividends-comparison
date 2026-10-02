@@ -1,0 +1,31 @@
+{
+  "code": "200",
+  "data": [
+    {
+      "desc": "Alphabet is a global technology holding company whose largest business is Google. It reports Google Services, Google Cloud, and Other Bets. Google Services includes Search, advertising, YouTube, Android, Chrome, Google Play, hardware, subscriptions, and platform ecosystems. Google Cloud provides infrastructure, data analytics, cybersecurity, Workspace, and generative AI services, while Other Bets includes long-horizon projects such as Waymo. Alphabet\u2019s advantages come from search scale, advertising data, video reach, mobile distribution, cloud infrastructure, and frontier AI research, with Gemini, DeepMind, and AI-enabled cloud services central to its current strategy.",
+      "icon": "https://img.bgstatic.com/multiLang/web/4427b2ce1441eb04cef885b15fb66ca5.png",
+      "isin": "US02079K3059",
+      "status": "active",
+      "ticker": "GOOGL",
+      "title": "Alphabet",
+      "tokens": [
+        {
+          "address": "0xca1942edeb697a85af98ef8c74c4910fe9587afb",
+          "decimals": 18,
+          "network": "ARB",
+          "symbol": "rGOOGL"
+        },
+        {
+          "address": "0x8b2601d03d4e1b678e3ce87ed4ea507145ff872a",
+          "decimals": 18,
+          "network": "Morph",
+          "symbol": "rGOOGL"
+        }
+      ],
+      "tradeValueUsd24h": 4321863.635,
+      "tradeVolume24h": 12372.16011255,
+      "type": "equity"
+    }
+  ],
+  "params": []
+}
