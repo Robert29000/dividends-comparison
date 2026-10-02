@@ -3,24 +3,27 @@
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from hexbytes import HexBytes
 from web3 import Web3
 
-from .contracts import (
+from .utils import (
     DIVIDEND_ACTION_TYPE,
     EXECUTED_STATUS,
     REALITY_ORACLE,
     abi_entry,
     load_abi,
+    scale_uint,
+    timestamp_fields,
+    timestamp_in_date_range,
 )
 from .cache import log_cache_path
 from .models import ComparisonError, Settings
 
 LOG_CACHE_FIELDS = {
+    "SchemaVersion",
     "TxHash",
     "Index",
     "BlockNumber",
@@ -52,6 +55,10 @@ def blockscout_rows(path: Path) -> list[dict[str, Any]]:
                 f"{sorted(missing)}; recollect logs"
             )
         for row in reader:
+            if row.get("SchemaVersion") != "2":
+                raise ComparisonError(
+                    f"outdated Blockscout cache {path}; recollect logs"
+                )
             if not row.get("TxHash"):
                 continue
             topics = [
@@ -81,26 +88,6 @@ def blockscout_rows(path: Path) -> list[dict[str, Any]]:
                     f"invalid Blockscout row in {path}: {exc}"
                 ) from exc
     return sorted(result, key=lambda row: (row["blockNumber"], row["logIndex"]))
-
-
-def scale_uint(value: int, decimals: int = 18) -> str:
-    if decimals < 0:
-        raise ValueError("decimals must not be negative")
-    if decimals == 0:
-        return str(value)
-    base = 10**decimals
-    whole, fraction = divmod(value, base)
-    if not fraction:
-        return str(whole)
-    return f"{whole}.{fraction:0{decimals}d}".rstrip("0")
-
-
-def timestamp_fields(timestamp: int) -> tuple[str, str]:
-    instant = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-    return (
-        instant.isoformat().replace("+00:00", "Z"),
-        instant.date().isoformat(),
-    )
 
 
 def log_timestamp_fields(log: Mapping[str, Any]) -> tuple[int, str]:
@@ -164,6 +151,10 @@ def decode_reality(
                 continue
             effective_timestamp = int(args["effectiveAt"])
             event_time, event_date = timestamp_fields(effective_timestamp)
+            if not timestamp_in_date_range(
+                effective_timestamp, settings.from_date, settings.to_date
+            ):
+                continue
             block_timestamp, block_at_iso = log_timestamp_fields(log)
             result[symbol].append(
                 {
@@ -271,6 +262,11 @@ def decode_xstocks(
             {key: value for key, value in item.items() if not key.startswith("_")}
             for item in schedules
             if not item["_overridden"]
+            and timestamp_in_date_range(
+                int(item["effective_timestamp"]),
+                settings.from_date,
+                settings.to_date,
+            )
         ]
     return result
 
@@ -300,6 +296,10 @@ def decode_robinhood(
                 args = event.process_log(log)["args"]
                 activation = int(args["effectiveAtTimestamp"])
                 activation_time, event_date = timestamp_fields(activation)
+                if not timestamp_in_date_range(
+                    activation, settings.from_date, settings.to_date
+                ):
+                    continue
                 block_timestamp, block_at_iso = log_timestamp_fields(log)
                 result[symbol].append(
                     {

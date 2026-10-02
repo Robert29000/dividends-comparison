@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,21 +25,25 @@ from dividends_comparison.collection import (
     resolve_assets,
 )
 from dividends_comparison.config import load_settings
-from dividends_comparison.contracts import REALITY_ORACLE, abi_entry, load_abi
 from dividends_comparison.enrichment import RpcEnricher, latest_block_before
 from dividends_comparison.events import (
     blockscout_rows,
     decode_reality,
     decode_robinhood,
     decode_xstocks,
-    scale_uint,
-    timestamp_fields,
 )
 from dividends_comparison.models import ComparisonError, Dividend, Settings
 from dividends_comparison.reporting import (
     build_nasdaq_rows,
     build_provider_rows,
     output_path,
+)
+from dividends_comparison.utils import (
+    REALITY_ORACLE,
+    abi_entry,
+    load_abi,
+    scale_uint,
+    timestamp_fields,
 )
 
 REALITY_EVENT_ABI = abi_entry(load_abi("reality.json"), "ActionExecuted")
@@ -105,6 +109,7 @@ def csv_log(
     timestamp: int = 1782860000,
 ) -> str:
     fields = [
+        "SchemaVersion",
         "TxHash",
         "Index",
         "BlockNumber",
@@ -118,6 +123,7 @@ def csv_log(
         "FourthTopic",
     ]
     row = {
+        "SchemaVersion": 2,
         "TxHash": tx_hash,
         "Index": index,
         "BlockNumber": block,
@@ -235,7 +241,7 @@ class DataTests(unittest.TestCase):
                             "data": "0x",
                             "blockNumber": "0x64",
                             "blockHash": "0x" + "ab" * 32,
-                            "timeStamp": "0x6a6e7100",
+                            "timeStamp": "0x1",
                             "logIndex": "0x3",
                             "transactionHash": "0x" + "56" * 32,
                         }
@@ -282,7 +288,8 @@ class DataTests(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["BlockNumber"], "100")
             self.assertEqual(rows[0]["Index"], "3")
-            self.assertEqual(rows[0]["Timestamp"], "1785622784")
+            self.assertEqual(rows[0]["Timestamp"], "1")
+            self.assertEqual(rows[0]["SchemaVersion"], "2")
 
 
 class DecodeTests(unittest.TestCase):
@@ -377,7 +384,7 @@ class DecodeTests(unittest.TestCase):
             atomic_write(path, first.rstrip() + "\n" + second_lines[1] + "\n")
             self.assertEqual(decode_xstocks(settings, {"AAPL": token})["AAPL"], [])
 
-    def test_robinhood_multiplier_fields(self):
+    def test_robinhood_multiplier_fields_use_effective_date_filter(self):
         with tempfile.TemporaryDirectory() as temporary:
             settings = settings_for(Path(temporary), ("robinhood",))
             token = "0x" + "12" * 20
@@ -385,22 +392,43 @@ class DecodeTests(unittest.TestCase):
                 ["uint256", "uint256", "uint256"],
                 [10**18, 1005 * 10**15, 1782864000],
             ).hex()
+            outside_data = "0x" + Web3().codec.encode(
+                ["uint256", "uint256", "uint256"],
+                [
+                    1005 * 10**15,
+                    1010 * 10**15,
+                    int(datetime(2026, 10, 1, tzinfo=timezone.utc).timestamp()),
+                ],
+            ).hex()
             path = log_cache_path(settings, "robinhood", "AAPL")
+            first = csv_log(
+                contract=token,
+                block=100,
+                index=1,
+                tx_hash="0x" + "11" * 32,
+                data=data,
+                topics=[event_topic(ROBINHOOD_EVENT_ABI)],
+                # The log was emitted before the configured range, but its
+                # effective timestamp is exactly on the inclusive boundary.
+                timestamp=1782860000,
+            )
+            second = csv_log(
+                contract=token,
+                block=101,
+                index=2,
+                tx_hash="0x" + "22" * 32,
+                data=outside_data,
+                topics=[event_topic(ROBINHOOD_EVENT_ABI)],
+            ).splitlines()
             atomic_write(
                 path,
-                csv_log(
-                    contract=token,
-                    block=100,
-                    index=1,
-                    tx_hash="0x" + "11" * 32,
-                    data=data,
-                    topics=[event_topic(ROBINHOOD_EVENT_ABI)],
-                ),
+                first.rstrip() + "\n" + second[1] + "\n",
             )
-            decoded = decode_robinhood(settings, {"AAPL": token})["AAPL"][0]
-            self.assertEqual(decoded["effective_timestamp"], 1782864000)
-            self.assertEqual(decoded["previous_multiplier"], "1")
-            self.assertEqual(decoded["proposed_multiplier"], "1.005")
+            decoded = decode_robinhood(settings, {"AAPL": token})["AAPL"]
+            self.assertEqual(len(decoded), 1)
+            self.assertEqual(decoded[0]["effective_timestamp"], 1782864000)
+            self.assertEqual(decoded[0]["previous_multiplier"], "1")
+            self.assertEqual(decoded[0]["proposed_multiplier"], "1.005")
 
 
 class ReportingTests(unittest.TestCase):
@@ -473,7 +501,7 @@ class RpcTests(unittest.TestCase):
             enricher = RpcEnricher(settings, collect=False)
             with self.assertRaisesRegex(
                 ComparisonError,
-                r"required RPC cache entry is missing: v3\|",
+                r"required RPC cache entry is missing: v4\|",
             ):
                 enricher.get(
                     "reality",
@@ -553,8 +581,76 @@ class RpcTests(unittest.TestCase):
                 },
             )
             self.assertEqual(result["total_supply_snapshot_block"], 2)
+            self.assertEqual(result["total_supply_snapshot_timestamp"], 30)
+            self.assertEqual(
+                result["total_supply_snapshot_at_iso"],
+                "1970-01-01T00:00:30Z",
+            )
             self.assertEqual(result["total_supply"], "1.25")
             self.assertEqual(Client.eth.supply_calls, [2, 2])
+
+    def test_robinhood_supply_uses_total_supply_ui(self):
+        class HistoricalCall:
+            def __init__(self, name, value, calls):
+                self.name = name
+                self.value = value
+                self.calls = calls
+
+            def call(self, *, block_identifier):
+                self.calls.append((self.name, block_identifier))
+                return self.value
+
+        class Functions:
+            def __init__(self, calls):
+                self.calls = calls
+
+            def decimals(self):
+                return HistoricalCall("decimals", 6, self.calls)
+
+            def totalSupplyUI(self):
+                return HistoricalCall("totalSupplyUI", 2_500_000, self.calls)
+
+            def totalSupply(self):
+                raise AssertionError("raw totalSupply() must not be used")
+
+        class Eth:
+            block_number = 4
+
+            def __init__(self):
+                self.calls = []
+
+            def get_block(self, number):
+                return {"timestamp": [10, 20, 30, 40, 50][number]}
+
+            def contract(self, *, address, abi):
+                return type("Contract", (), {"functions": Functions(self.calls)})()
+
+        class Client:
+            def __init__(self):
+                self.eth = Eth()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = settings_for(Path(temporary), ("robinhood",))
+            client = Client()
+            enricher = RpcEnricher(settings, collect=True)
+            enricher._client = lambda provider: client
+            result = enricher.get(
+                "robinhood",
+                "AAPL",
+                {
+                    "block_number": 4,
+                    "block_timestamp": 50,
+                    "block_at_iso": "1970-01-01T00:00:50Z",
+                    "log_index": 0,
+                    "effective_timestamp": 40,
+                    "contract_address": "0x" + "11" * 20,
+                },
+            )
+            self.assertEqual(result["total_supply"], "2.5")
+            self.assertEqual(
+                client.eth.calls,
+                [("decimals", 2), ("totalSupplyUI", 2)],
+            )
 
 
 class OfflineModeTests(unittest.TestCase):
@@ -573,7 +669,7 @@ class OfflineModeTests(unittest.TestCase):
             )
             atomic_write(
                 log_cache_path(settings, "reality", "oracle"),
-                "TxHash,Index,BlockNumber,BlockHash,Timestamp,ContractAddress,"
+                "SchemaVersion,TxHash,Index,BlockNumber,BlockHash,Timestamp,ContractAddress,"
                 "Data,FirstTopic,SecondTopic,ThirdTopic,FourthTopic\n",
             )
             write_json(rpc_cache_path(settings), {})

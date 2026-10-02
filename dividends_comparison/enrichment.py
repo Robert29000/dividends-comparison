@@ -7,10 +7,8 @@ from typing import Any, Mapping
 from web3 import Web3
 
 from .cache import read_json, rpc_cache_path, write_json
-from .config import require_env
-from .contracts import load_abi
-from .events import scale_uint
 from .models import ComparisonError, Settings
+from .utils import load_abi, require_env, scale_uint, timestamp_fields
 
 
 def enrichment_key(
@@ -18,10 +16,11 @@ def enrichment_key(
     symbol: str,
     event: Mapping[str, Any],
 ) -> str:
-    # v3 requires raw and ISO block timestamps from the current log cache schema.
+    # v4 records and validates the timestamp of the pre-effective snapshot and
+    # uses totalSupplyUI() for Robinhood tokens.
     return "|".join(
         (
-            "v3",
+            "v4",
             provider,
             symbol,
             str(event["block_number"]),
@@ -52,6 +51,12 @@ def latest_block_before(web3: Web3, timestamp: int) -> int:
             low = midpoint
         else:
             high = midpoint
+    low_timestamp = int(web3.eth.get_block(low)["timestamp"])
+    high_timestamp = int(web3.eth.get_block(high)["timestamp"])
+    if low_timestamp >= timestamp or high_timestamp < timestamp:
+        raise ComparisonError(
+            "RPC block timestamps do not bracket the target timestamp"
+        )
     return low
 
 
@@ -104,6 +109,8 @@ class RpcEnricher:
                 "block_at_iso",
                 "total_supply",
                 "total_supply_snapshot_block",
+                "total_supply_snapshot_timestamp",
+                "total_supply_snapshot_at_iso",
             }
             if not isinstance(record, dict) or not required.issubset(record):
                 raise ComparisonError(
@@ -127,8 +134,19 @@ class RpcEnricher:
                     client, cutoff_timestamp
                 )
             snapshot_block = self.snapshot_blocks[snapshot_cache_key]
+            snapshot_timestamp = int(
+                client.eth.get_block(snapshot_block)["timestamp"]
+            )
+            if snapshot_timestamp >= cutoff_timestamp:
+                raise ComparisonError(
+                    "supply snapshot block is not before the effective timestamp"
+                )
 
-            abi = load_abi("xstocks.json" if provider == "xstocks" else "erc20.json")
+            abi_filename = {
+                "xstocks": "xstocks.json",
+                "robinhood": "robinhood.json",
+            }.get(provider, "erc20.json")
+            abi = load_abi(abi_filename)
             contract = client.eth.contract(
                 address=Web3.to_checksum_address(str(event["contract_address"])),
                 abi=abi,
@@ -136,16 +154,20 @@ class RpcEnricher:
             decimals = int(
                 contract.functions.decimals().call(block_identifier=snapshot_block)
             )
-            supply = int(
-                contract.functions.totalSupply().call(
-                    block_identifier=snapshot_block
-                )
+            supply_function = (
+                contract.functions.totalSupplyUI
+                if provider == "robinhood"
+                else contract.functions.totalSupply
             )
+            supply = int(supply_function().call(block_identifier=snapshot_block))
+            snapshot_at_iso = timestamp_fields(snapshot_timestamp)[0]
             record: dict[str, Any] = {
                 "block_timestamp": block_timestamp,
                 "block_at_iso": block_at_iso,
                 "total_supply": scale_uint(supply, decimals),
                 "total_supply_snapshot_block": snapshot_block,
+                "total_supply_snapshot_timestamp": snapshot_timestamp,
+                "total_supply_snapshot_at_iso": snapshot_at_iso,
             }
             if provider == "xstocks":
                 previous_block = int(event["block_number"]) - 1

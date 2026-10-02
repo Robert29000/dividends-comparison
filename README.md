@@ -50,8 +50,8 @@ With no collection flag, the report is rebuilt without network calls:
 compare-dividends --config config.toml
 ```
 
-Offline mode requires caches produced by the current schema. Log caches without
-the raw `Timestamp` column and pre-`v3` RPC entries are rejected with an
+Offline mode requires caches produced by the current schema. Legacy log caches
+and pre-`v4` RPC entries are rejected with an
 instruction to rerun `--collect-logs`; incomplete legacy timestamps are never
 written to output.
 
@@ -70,13 +70,16 @@ the contract address and `topic0` filters. Reality Finance collects only the
 `ActionExecuted` event. The indexed rToken topic is decoded and checked against
 both the event argument and the asset API address.
 
-The configured date range applies to the UTC timestamp of the emitted log. For
-every collected provider event, the tool finds the latest block whose
+Blockscout collection retains all matching topic logs. After decoding, the
+configured date range is applied inclusively to each event's effective UTC
+date, rather than to the date on which its log was emitted. For every retained
+provider event, the tool finds the latest block whose
 timestamp is strictly earlier than the event's on-chain effective/activation
-timestamp. It stores that block in `total_supply_snapshot_block` and reads
-`totalSupply()` at that historical block into `total_supply`. If activation
-is still in the future, the current chain head and current supply are used.
-Archive-capable RPC endpoints are therefore required for past events.
+timestamp. It stores the block and its timestamp in the snapshot columns.
+Supply is read at that historical block using `totalSupplyUI()` for Robinhood
+and `totalSupply()` for the other providers. If activation is still in the
+future, the current chain head and current supply are used. Archive-capable RPC
+endpoints are therefore required for past events.
 
 Dates are inclusive and on-chain timestamps are interpreted in UTC. Provider
 tables include the raw Unix `effective_timestamp`, its readable

@@ -33,6 +33,8 @@ PROVIDER_FIELDS = (
     "transaction_hash",
     "total_supply",
     "total_supply_snapshot_block",
+    "total_supply_snapshot_timestamp",
+    "total_supply_snapshot_at_iso",
     "payment_per_share",
     "payout_token",
     "previous_multiplier",

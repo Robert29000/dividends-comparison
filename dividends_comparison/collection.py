@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import io
 import json
-from datetime import datetime, timezone
 from time import sleep
 from typing import Any, Mapping
 
@@ -20,9 +19,14 @@ from .cache import (
     read_json,
     write_json,
 )
-from .config import parse_iso_date, require_env
-from .contracts import REALITY_ORACLE, abi_entry, load_abi
 from .models import ComparisonError, Dividend, Settings
+from .utils import (
+    REALITY_ORACLE,
+    abi_entry,
+    load_abi,
+    parse_iso_date,
+    require_env,
+)
 
 
 def http_get(
@@ -213,7 +217,6 @@ def blockscout_log_rows(
     address: str,
     api_key: str,
     topic: str,
-    settings: Settings,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {
         "chain_id": chain_id,
@@ -240,12 +243,8 @@ def blockscout_log_rows(
         try:
             topics = list(item["topics"])
             block_timestamp = int(str(item["timeStamp"]), 0)
-            block_date = datetime.fromtimestamp(
-                block_timestamp, tz=timezone.utc
-            ).date()
-            if not settings.from_date <= block_date <= settings.to_date:
-                continue
             row = {
+                "SchemaVersion": 2,
                 "TxHash": item["transactionHash"],
                 "Index": int(str(item["logIndex"]), 0),
                 "BlockNumber": int(str(item["blockNumber"]), 0),
@@ -270,6 +269,7 @@ def collect_logs(
 ) -> None:
     api_key = require_env("BLOCKSCOUT_API_KEY")
     fieldnames = (
+        "SchemaVersion",
         "TxHash",
         "Index",
         "BlockNumber",
@@ -306,7 +306,6 @@ def collect_logs(
                         address,
                         api_key,
                         topic,
-                        settings,
                     )
                 )
                 sleep(0.5)

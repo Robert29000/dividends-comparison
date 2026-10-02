@@ -2,20 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import tomllib
-from datetime import date
 from pathlib import Path
-from typing import Any
 
 from .models import ComparisonError, Settings
-
-
-def parse_iso_date(value: Any, label: str) -> date:
-    try:
-        return date.fromisoformat(str(value))
-    except ValueError as exc:
-        raise ComparisonError(f"{label} must be an ISO date (YYYY-MM-DD)") from exc
+from .utils import parse_iso_date
 
 
 def load_settings(path: Path) -> Settings:
@@ -63,10 +54,3 @@ def load_settings(path: Path) -> Settings:
         blockscout_url=str(services["blockscout_url"]),
         provider_config={key: dict(value) for key, value in provider_config.items()},
     )
-
-
-def require_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise ComparisonError(f"environment variable {name} is required")
-    return value
