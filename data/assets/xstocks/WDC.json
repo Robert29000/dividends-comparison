@@ -173,11 +173,12 @@
           "issuance": true,
           "network": "Monad",
           "redemption": true,
-          "supportsAtomicSwaps": false,
+          "supportsAtomicSwaps": true,
           "symbol": "USDC"
         }
       ],
-      "supportsAtomicSwaps": false
+      "supportsAtomicSwaps": true,
+      "wrapperAddressV2": "0xd60fa21e47128304bb715681a230b689a71b6071"
     },
     {
       "address": "0xd2e60293f29dde3815c16c664de722029e96e03a",
@@ -291,7 +292,7 @@
         "minOrderFiatValue": 1000
       }
     },
-    "nextChangeAt": "2026-10-01T20:00:00.000Z",
+    "nextChangeAt": "2026-10-02T20:00:00.000Z",
     "openNow": true,
     "tradingHoursMode": "TwentyFourFive"
   },

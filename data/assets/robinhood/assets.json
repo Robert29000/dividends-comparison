@@ -2007,7 +2007,7 @@
       }
     },
     {
-      "currentMultiplier": "1.000000000000000000",
+      "currentMultiplier": "1.002674650028132112",
       "deployments": [
         {
           "atomicEnabled": false,
@@ -3877,7 +3877,7 @@
       }
     },
     {
-      "currentMultiplier": "1.000000000000000000",
+      "currentMultiplier": "1.002055340428983545",
       "deployments": [
         {
           "atomicEnabled": false,
@@ -6479,40 +6479,6 @@
       "tokenDecimals": 18,
       "tokenName": "MongoDB \u2022 Robinhood Token",
       "tokenSymbol": "MDB",
-      "tradingCapabilities": {
-        "extended": {
-          "fractional": "TRADING_STATUS_TRADABLE",
-          "whole": "TRADING_STATUS_TRADABLE"
-        },
-        "market": {
-          "fractional": "TRADING_STATUS_TRADABLE",
-          "whole": "TRADING_STATUS_TRADABLE"
-        },
-        "overnight": {
-          "fractional": "TRADING_STATUS_TRADABLE",
-          "whole": "TRADING_STATUS_TRADABLE"
-        }
-      }
-    },
-    {
-      "currentMultiplier": "1.000000000000000000",
-      "deployments": [
-        {
-          "atomicEnabled": false,
-          "chainId": 4663,
-          "contractAddress": "0xB7EDfE2F33C1aC06830a971dFb559bDe8A2a3d76",
-          "itnEnabled": false,
-          "networkName": "Robinhood Chain"
-        }
-      ],
-      "id": "0x00000000000000000000000000000000f9809b86bf2c492dadb606c7871465a4",
-      "isin": "US74768A1043",
-      "logoUrl": "https://cdn.robinhood.com/ncw_assets/logos/0xb7edfe2f33c1ac06830a971dfb559bde8a2a3d76.png",
-      "pendingMultiplier": "",
-      "status": "ASSET_STATUS_ACTIVE",
-      "tokenDecimals": 18,
-      "tokenName": "Quantinuum Inc. Class A \u2022 Robinhood Token",
-      "tokenSymbol": "QNT",
       "tradingCapabilities": {
         "extended": {
           "fractional": "TRADING_STATUS_TRADABLE",

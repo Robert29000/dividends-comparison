@@ -157,6 +157,23 @@
     },
     {
       "address": "0xe92f673ca36c5e2efd2de7628f815f84807e803f",
+      "network": "Monad",
+      "stablecoins": [
+        {
+          "address": "0x754704bc059f8c67012fed69bc8a327a5aafb603",
+          "currency": "USD",
+          "decimals": 6,
+          "issuance": true,
+          "network": "Monad",
+          "redemption": true,
+          "supportsAtomicSwaps": true,
+          "symbol": "USDC"
+        }
+      ],
+      "supportsAtomicSwaps": true
+    },
+    {
+      "address": "0xe92f673ca36c5e2efd2de7628f815f84807e803f",
       "network": "XLayer",
       "stablecoins": [
         {
@@ -296,7 +313,7 @@
         "minOrderFiatValue": 1000
       }
     },
-    "nextChangeAt": "2026-10-01T20:00:00.000Z",
+    "nextChangeAt": "2026-10-02T20:00:00.000Z",
     "openNow": true,
     "tradingHoursMode": "TwentyFourFive"
   },

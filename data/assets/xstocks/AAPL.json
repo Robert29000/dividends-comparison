@@ -137,6 +137,12 @@
     },
     {
       "address": "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a",
+      "network": "Monad",
+      "stablecoins": [],
+      "supportsAtomicSwaps": true
+    },
+    {
+      "address": "0x9d275685dc284c8eb1c79f6aba7a63dc75ec890a",
       "network": "Mantle",
       "stablecoins": [
         {
@@ -254,7 +260,7 @@
         "minOrderFiatValue": 1000
       }
     },
-    "nextChangeAt": "2026-10-01T20:00:00.000Z",
+    "nextChangeAt": "2026-10-02T20:00:00.000Z",
     "openNow": true,
     "tradingHoursMode": "TwentyFourFive"
   },
